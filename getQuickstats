@@ -1,0 +1,42 @@
+function getQuickstats {
+    $badHosts = @()
+    $vcs = @("vcenter1","vcenter2","vcenter3")
+    write-host "===== Checking Hosts ====="
+    foreach($vc in $vcs){
+        if($global:defaultviservers){
+            disconnect-viserver * -Confirm:$false
+        
+        }
+        $1 = Connect-VIServer $vcs
+        $hosts = Get-VMHost
+        write-host "Connected to vCenter $($global:defaultviservers.name)" -fore Magenta
+        foreach ($h in $hosts){
+            if((($h.extensionData.configissue.fullformattedmessage -like "*Quick stats*")) -ne $false){
+                write-host "Host $($h.name) has quickstats error" -fore Red
+                $badHosts += "$($h.name)`n"
+            
+            }else{
+                write-host "Host $($h.name) does not have quickstats error" -fore Green
+            
+            }
+        
+        }
+    
+    }
+    Write-Host "===== Check Complete =====`n"
+    if($badHosts.Length -eq 0){
+        Write-Host "No quickstats issues!" -fore Cyan
+
+    
+    }else{
+        Write-Host "List of hosts experiencing quickstats issues:"
+        Write-Host "$($badHosts)" -ForegroundColor Red
+    
+    }
+
+
+
+
+
+
+}
