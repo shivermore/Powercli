@@ -1,0 +1,4 @@
+Get-VMHost | select Name,Parent,Manufacturer,Model,
+
+    @{N='Serial';E={(get-esxcli -vmhost $_).hardware.platform.get().SerialNumber}} | sort Parent,Name | export-csv -path \\x.x.x.x\share\esxihardware.csv -NoTypeInformation
+
