@@ -1,0 +1,33 @@
+# Places a host into maintenance mode and joins it to the domain
+# Sets AD service to start and stop with host
+# The host must be manually rebooted after joined to the domain
+
+Param(
+    [Parameter(Mandatory=$true)]
+        [String]$esxname2
+)
+$domain = "my.domain.com"
+$esxname = Get-VMHost $esxname2
+
+# put host in maintenance mode
+Set-VMHost -vmhost $esxname -state maintenance -confirm:$false
+set-vmhost -vmhost
+$esx = get-vmhost -name $esxname
+while($esx.state -ne 'maintenance'){
+    sleep 8
+    $esx = get-vmhost -name $esxname
+
+} 
+
+# change AD service to start and stop with host
+Get-VMHostService | where {$_.key -eq "lwsmd"} | set-vmhostservice -policy on -confirm:$false
+
+# joint host to AD
+$pswd = read-host -prompt "Enter host Password"
+$authcreds = Get-Credential -message "AD Service Account info"
+$esxSrv = connect-viserver -server $esxname -credential -user root -password $pswd
+$adjoin = Get-VMHostAuthentication -vmhost $esxname | Set-VMHostAuthentication -domain $domain -joindomain -credential $authcreds -confirm:$false
+
+# start AD service
+Get-VMHostService | where {$_.key -eq "lwsmd"} | start-vmhostservice -confirm:$false
+
