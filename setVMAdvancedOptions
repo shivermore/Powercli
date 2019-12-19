@@ -1,0 +1,22 @@
+set-executionpolicy RemoteSigned -force
+
+$vcenter = "myvCenter01"
+$vmName = ""
+
+$cnx = Connect-VIServer -server $vcenter
+
+if ($cnx.isconnected -ne "True"){
+    write-host "Please enter the correct password, re-execute this script" -fore Red
+
+}else{
+    $allVM = get-vm $vmName
+        foreach ($c in $allVM){
+            New-AdvancedSetting -Entity (Get-VM $c.name) -Name "isolation.tools.diskWiper.disable" -Value "TRUE" -confirm:$false -force
+            New-AdvancedSetting -Entity (Get-VM $c.name) -Name "RemoteDisplay.maxConnections" -Value "1" -confirm:$false -force
+            New-AdvancedSetting -Entity (Get-VM $c.name) -Name "other advanced VM settings" -Value "TRUE" -confirm:$false -force
+        
+        }
+
+    Disconnect-VIServer
+
+}
