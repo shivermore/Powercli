@@ -1,0 +1,17 @@
+$block1 = Connect-VIServer myvCenter
+$cdpinfo = @()
+$vmhosts = Get-Cluster "myCluster01" | Get-VMHost
+
+$vmhosts | 
+%{get-view $_.ID}|
+%{$esxname = $_.Name; get-view $_.ConfigManager.NetworkSystem}|
+%{ foreach($physnic in $_.NetworkInfo.Pnic){
+    $pnicInfo = $_.QueryNetworkHint($physnic.Device)
+    foreach($hint in $pnicInfo){
+        $cdpinfo += @([pscustomobject]@{Host=$esxname;Device=$hint.Device;Switch=$hint.ConnectedSwitchPort.DevId;Port=$hint.ConnectedSwitchPort.PortId})
+
+        }
+    }
+}
+
+$cdpinfo | export-csv \\x.x.x.x\share\cdpinfo.csv
