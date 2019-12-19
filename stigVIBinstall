@@ -1,0 +1,17 @@
+$cluster = "myCluster01"
+$vibPath = "/vmfs/volumes/vsan:12345-12345/VIB/stigvib.vib"
+$vcenter = "myvCenter01"
+$cred = Get-Credential
+
+Connect-VIServer -server $vcenter -credential -$cred
+Get-VMHost -location $cluster | where {$_.PowerState -eq "PoweredOn" -and $_.ConnectionState -eq "Connected"} | foreach {
+    write-host "Preparing --> $($_.Name) for VIB installation" -fore Yellow
+
+    $esxcli = get-esxcli -VMhost $_
+
+    write-host "--->Installing VIB on $($_.name)" -fore Cyan
+    $action = $esxcli.software.vib.install($null,$null,$null,$null,$null,$true,$null,$null,$vibpath)
+
+    if ($action.message -eq "Operation finished successfully."){write-host "Action Completed Successfully on $($_.name)" -fore green} else {write-host $action.message -fore Red}
+
+}
