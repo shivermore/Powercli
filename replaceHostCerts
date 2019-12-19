@@ -1,0 +1,85 @@
+$creds = Get-Credential
+$hostrootcreds = Get-Credential -UserName "root"
+$certDirectory = "\\x.x.x.x\share\certs"
+
+function replaceCerts{
+    [cmdletbinding()]
+    param($cluster, $hostrootcreds, $hostname)
+
+    if($hostname){
+        $hostlist += $hostname
+    
+    }else{
+        $hostlist = ((get-cluster -name $cluster | Get-VMHost | ?{$_.name -notmatch "hostname"}))
+        $hostlist = ($hostlist).name.substring(0,14)
+    
+    }
+
+    foreach ($h in $hostlist){
+        $crtPath = "$($certDirectory)\$($h)\rui.crt"
+        $keyPath = "$($certDirectory)\$($h)\rui.key"
+        $pemPath = "$($certDirectory)\castore.pem"
+        $uriHostkey = "https://$($h)/host/ssl_key"
+        $uriHostCrt = "https://$($h)/host/ssl_cert"
+        $uriHostPem = "https://$($h)/host/castore"
+        Invoke-WebRequest -uri $uriHostKey -method Put -infile $keypath -contenttype 'application/pkcs8' -Credential $hostrootcreds
+        Invoke-WebRequest -uri $uriHostCrt -method Put -infile $crtpath -contenttype 'application/pkcs8' -Credential $hostrootcreds
+        Invoke-WebRequest -uri $uriHostPem -method Put -infile $pempath -contenttype 'application/pkcs8' -Credential $hostrootcreds
+    
+    }
+
+}
+
+function replaceConfig{
+    [cmdletbinding()]
+    param($cluster, $hostrootcreds, $hostname)
+
+     if($hostname){
+        $hostlist += $hostname
+    
+    }else{
+        $hostlist = ((get-cluster -name $cluster | Get-VMHost | ?{$_.name -notmatch "hostname"}))
+        $hostlist = ($hostlist).name.substring(0,14)
+    
+    }
+
+    $mod = 'monitor_control.disable_mmu_largepages = "TRUE"'
+    foreach($h in $hostlist){
+        write-host "working on $($h)" -fore Cyan
+        $origConf = Invoke-WebRequest -uri "https://$($h).com/host/vmware_config" -method get -credential $hostrootcreds
+        $confToModify = ($origConf.content)
+        mkdir $h -erroraction SilentlyContinue
+        $confToModify = | out-file "$(pwd)/$($h)/vmware_config.bak"
+        $confToModify = | out-file "$(pwd)/$($h)/vmware_config"
+        (get-content -path "$(pwd)/$($h)/vmware_config") | ?{$h_.trim() -ne ""} | set-content "$(pwd)/$($h)/vmware_config"
+        add-content  -path "$(pwd)/$($h)/vmware_config") -value $mod
+        invoke-webrequest -uri "https://$($h).com/host/vmware_config" -method put -infile "$(pwd)/$($h)/vmware_config" -credential $hostrootcreds
+
+    
+    }
+
+}
+
+
+$ingma = (get-cluster -name "cluster01" | get-vm).name
+foreach($i in $ingma){
+    $advvmsetting = Get-AdvancedSetting -entity (get-vm -name $i) -name "isolation.tools.autoinstall.disable"
+    write-host "$($i)" -NoNewline -fore Cyan
+    Write-Host " has autoinstall set to: " -NoNewline
+    if($advvmsetting.value -eq "TRUE"){
+        write-host "$($advvmsetting.value)" -fore Red
+        set-advancedsetting -advancedsetting (get-advancedsetting -entity (get-vm -name -$i) -name "isolation.tools.autoinstall.disable") -value "FALSE" -confirm:$false
+    
+    }elseif ($advvmsetting.value -eq "FALSE"){
+        write-host "$($i.value)" -fore green
+    
+    }else {
+        write-hosts "null" -fore magenta
+    
+    }
+
+
+
+}
+
+Get-AdvancedSetting -entity (get-vm -name "vm001") -name "isolation.tools.autoinstall.disable"
