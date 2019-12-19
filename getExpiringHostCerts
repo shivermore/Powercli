@@ -1,0 +1,100 @@
+function initial{
+    param(
+        [parameter(mandatory=$true)]
+        [string] $destination,
+        [parameter()]
+        [int]$port=443
+    
+    )
+    try{
+        $client = New-Object net.sockets.tcpclient
+        $client.connect($destination, $port)
+        $stream = $client.GetStream()
+        $callback = {param($sender, $cert, $chain, $errors) return $true}
+        $sslstream = [system.net.security.sslstream]::new($stream, $true, $callback)
+        $sslstream.AuthenticateAsClient('') 
+        [system.security.cryptography.x509certificates.x509certificate2]::new($sslstream.RemoteCertificate)
+           
+    }catch{
+        write-warning $_
+    }finally{
+        $sslstream.dispose()
+        $client.dispose()   
+    }
+
+}
+
+function next{
+    [cmdletbinding()]
+    param($hostname, $esxYear)
+    $cert = initial $hostname
+    $expDate = $cert.notafter
+    $certCN = $cert.subject
+    if($expYear){
+        $hdate = (((($esxDate.tostring()).split(' '))[0]).split('/'))[2]    
+        if([int]$hdate -lt [int]$expYear){
+            Write-Host "$(($hostname).name.substring(0,14)) expires $($expdate)" -fore Red
+            $global:certsToReplace += $hostname        
+        
+        }
+        if($certCN -match "VMware Engineering"){
+            Write-Host "$(($hostname).name.substring(0,14)) has a self signed certificate" -fore Yellow
+            $global:certsToReplace += $hostname
+        
+        }
+        
+    }else{
+        if($certCN -match "VMware Engineering"){
+            Write-Host "$(($hostname).name.substring(0,14)) has a self signed certificate" -fore Yellow
+            $global:certsToReplace += $hostname
+        
+        }else{
+            Write-Host "$(($hostname).name.substring(0,14)) expires $($expdate)" -fore cyan
+        
+        }
+    
+    }
+
+}
+
+function getExpiringHostCertificate{
+    [cmdletbinding()]
+    param($vc, $hostname, $expyear)
+
+    $global:certsToReplace = @()
+
+    if(!$global:defaultviservers){
+        Connect-VIServer $vc
+    
+    }
+
+    Write-Output "Starting to obtain host certificates"
+    if($hostname){
+        if($esxyear){
+            next -hostname $hostname -esxYear $expyear
+        
+        }else{
+            next -hostname $hostname
+        
+        }
+    
+    }else{
+        $hosts = Get-VMHost
+        foreach($h in $hosts){
+            if($expyear){
+                next -hostname $h -esxYear $expyear
+            
+            }else{
+                next -hostname $h
+            
+            }
+        
+        }
+    
+    }
+    Write-Output " "
+    wrote-output "Completed obtaining host certificates"
+
+}
+
+$global:certsToReplace
