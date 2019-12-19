@@ -1,0 +1,122 @@
+$global:esxihostcred = $null
+$global:account1 = $null
+$global:account2 = $null
+$global:password1 = $null
+$global:password2 = $null
+
+function main-variables{
+    $global:account1 = "mycustomaccount1"
+    $global:account2 = "mycustomaccount2"
+
+    write-host "Please type $($global:account1) password"
+    $global:password1 = read-host "Password"
+
+    write-host "Please type $($global:account2) password"
+    $global:password2 = read-host "Password"
+
+    $global:esxihostcred = get-credential -Message "ESXi root account" -UserName "root"
+}
+
+function get-hostaccounts{
+    $input = ''
+    while (($input -ne '1') -and ($input -ne '2')){
+        write-host "Please select desired vCenter`n[1] vCenter-001`n[2] vCenter-002"
+        $input = read-host "Selection Number"
+    
+    }
+
+    $vis = ''
+    if ($input -eq '1'){
+        $vis = "vCenter-001.fqdn.mil"
+    }elseif ($input -eq '2'){
+        $vis = "vCenter-002.fqdn.mil"
+    }else {
+        write-host "Invalid vCenter.  Exiting ..."
+    }
+
+    if ($global:defaultviservers){
+        Disconnect-VIServer * -confirm:$false
+    }
+
+    $con = Connect-VIServer $vis
+    if($con){
+        write-host "Successfully connected to $($global:defaultviservers.name) as user $($global:defaultviservers.user)" -fore Green
+    }else{
+        write-host "Failed to connect to $($vis)" -fore Red
+    }
+
+    $allhosts = (get.vmhost).name
+    $esxis = @()
+    $accsbase =@($global:account1,$global:account2)
+    foreach ($e in $allhosts){
+        if($global:defaultviservers){
+            Disconnect-VIServer * -confirm:$false
+        }
+        write-host "Connecting to $($e)" -fore Cyan
+        $esxiconn = Connect-VIServer $e -credential $global:esxihostcred
+        $hostaccs = (Get-VMHostAccount).id
+        if(($hostaccs -notcontains $accsbase[0]) -or ($hostaccs -notcontains $accsbase[1])){
+            $esxis += $e
+            Write-Host "Did not contain an account" -fore Red
+        }
+    }
+    if ($global:defaultviservers){
+        disconnect-viserver * -confirm:$false
+    }
+    return $esxis
+    
+}
+
+function addSecondaryAccounts{
+
+    main-variables
+    $esxis = get-hostaccounts
+
+    write-host "====== Adding Accounts ======" -fore Magenta
+    $accsbase = @($global:account1,$global:account2)
+    foreach($esxi in $esxis){
+        write-host "Connecting to $($esxi)"
+        $connect1 = Connect-VIServer $esxi -credential $global:esxihostcred -erroraction silentlycontinue -warning ignore
+        $esxiinfo = get-vmhost -server $esxis
+
+        try{
+        $user1 = Get-VMHostAccount -user $global:account1 -server $esxiinfo.name -erroraction stop
+        
+        }catch{
+        $user1 = New-VMHostAccount -id $global:acount1 -password $global:password1 -grantshellaccess -server $esxiinfo.name
+        $permission1 = new-vipermission -entity $esxiinfo.name -role "readonly" -principal $global:account1 -propagate $true
+        
+        }
+
+        try{
+        $user2 = Get-VMHostAccount -user $global:account2 -server $esxiinfo.name -erroraction stop
+        
+        }catch{
+        $user2 = New-VMHostAccount -id $global:acount2 -password $global:password2 -grantshellaccess -server $esxiinfo.name
+        $permission2 = new-vipermission -entity $esxiinfo.name -role "readonly" -principal $global:account2 -propagate $true
+        
+        }
+
+        $hostaccs = (Get-VMHostAccount).id
+
+        if(($hostaccs -notcontains $accsbase[0]) -or ($hostaccs -notcontains $accsbase[1])){
+            write-host "Still missing an account $($esxi)" -fore Red
+        
+        }
+
+        if($global:defaultviservers){
+            Disconnect-VIServer * -confirm:$false
+        
+        }
+
+        if($global:defaultviservers){
+            Disconnect-VIServer * -confirm:$false
+        
+        }
+    
+    }
+        write-host "====== Completed ======" -fore Magenta
+
+}
+
+
