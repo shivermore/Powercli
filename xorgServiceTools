@@ -1,0 +1,134 @@
+function getxorgstatus{
+    $hosts = (Get-VMHost).name
+    foreach($h in $hosts){
+        $stats = Get-VMHostService -vmhost $h | ?{$_.key -eq "xorg"}
+        write-host "$($h): " -NoNewline -ForegroundColor Cyan
+        Write-Host "$($stats.key) " -NoNewline -ForegroundColor Magenta
+        Write-Host "has the policy " -NoNewline
+        Write-Host "$($stats.policy) " -NoNewline -ForegroundColor magenta
+        Write-Host "and is currently " -NoNewline
+        if($stats.running -eq "True"){
+            Write-Host "RUNNING" -fore Green
+        
+        }else{
+            Write-Host "NOT RUNNING" -fore Red
+        }
+    }
+
+}
+
+function enableexorgservice{
+    $hosts = (get-vmhost).name
+    foreach ($h in $hosts){
+        $stats = get-vmhostservice -vmhost $h | ?{$_.key -eq "xorg"}
+        write-host "$($h): " -NoNewline -ForegroundColor Cyan
+        Write-Host "$($stats.key) " -NoNewline -ForegroundColor Magenta
+        Write-Host "has the policy " -NoNewline
+        Write-Host "$($stats.policy) " -NoNewline -ForegroundColor magenta
+        Write-Host "and is currently " -NoNewline
+        if($stats.running -eq "True"){
+            Write-Host "RUNNING" -fore Green
+        
+        }else{
+            Write-Host "ENABLING" -fore Red
+            $en = start-vmhostservice -hostservice $stats
+            if($en.running -eq "True"){
+                write-host "$($h): " -NoNewline -ForegroundColor Cyan
+                Write-Host "$($stats.key) " -NoNewline -ForegroundColor Magenta
+                Write-Host "has the policy " -NoNewline
+                Write-Host "$($stats.policy) " -NoNewline -ForegroundColor magenta
+                Write-Host "and is currently " -NoNewline
+                Write-Host "ENABLED" - fore green
+                                           
+            }else{
+                write-host "$($h): " -NoNewline -ForegroundColor Cyan
+                Write-Host "$($stats.key) " -NoNewline -ForegroundColor Magenta
+                Write-Host "has the policy " -NoNewline
+                Write-Host "$($stats.policy) " -NoNewline -ForegroundColor magenta
+                Write-Host "and is currently " -NoNewline
+                Write-Host "not running: FAILED TO ENABLE" - fore red
+            
+            }
+        
+        }
+    }
+
+}
+
+
+function getgpumem{
+    $hostsneedxorgrestart = @()
+    $hostsgoodxorg = @()
+    $hosts = Get-VMHost
+    foreach($h in $hosts){
+        $info = get-view -id $h.id -verbose:false
+        $gpuinfo = $info.config.graphicsinfo
+        $memory = $gpuinfo.memorysizeinkb
+        write-host "getting gpu memory size for esxi host " -NoNewline
+        Write-Host "$($h.name) "-fore Cyan
+        foreach($m in $memory){
+            $memingb = [system.math]::round($m/1MB, 0)
+            if($memingb -eq 0){
+                write-host "memory is $($memingb) GB: restart xorg service" -fore Red
+                if($hostsneedxorgrestart -notcontains "$($h.name.substring(0,14))"){
+                    $hostsneedxorgrestart += $h.name.substring(0,14)
+                
+                }
+            
+            }else{
+                write-host "memory is $($memingb) GB" -fore Green
+                if($hostgoodxorg -notcontains "$($h.name.substring(0,14))"){
+                    $hostgoodxorg += $h.name.substring(0,14)
+                
+                }
+            }
+        
+        }
+    
+    }
+    write-host "$($hostgoodxorg.length) hosts are good"
+    if($hostsneedxorgrestart.length -eq 0){
+        Write-Host "All host gpu memory good" -fore Green
+    
+    }else{
+        Write-Host "These hosts need attention:" -fore Red
+        foreach ($hostess in $hostsneedxorgrestart){
+            Write-Host "$($hostess )" -NoNewline -fore Cyan
+            Write-Host "is in cluster " -NoNewline
+            $cl = (Get-VMHost -name "*$($hostess)*" | Get-Cluster).name
+            write-host "$($cl)" -fore Magenta
+        
+        }
+    
+    }
+}
+
+
+function getgpucount {
+    $hostsmissinggpu = @()
+    $hostsgoodgpu = @()
+    $hosts = Get-VMHost
+    foreach($h in $hosts){
+        $info = get-view -id $h.id -verbose:$false
+        $gpuinfo = $info.config.graphicsinfo.memorysizeinkb.length
+        write-host "getting gpu info " -nonewline
+        Write-Host "$($h.name)" -fore Cyan
+        foreach($m in $gpuinfo){
+            if($m -lt 8){
+                if($hostsmissinggpu -notcontains "$($h.name.substring(0,14))"){
+                    $hostsmissinggpu += $h.name.substring(0,14)
+                
+                }
+            
+            }else{
+                if($hostsgoodgpu -notcontains "$($h.name.substring(0,14))"){
+                    $hostsgoodgpu += $h.name.substring(0,14)
+                
+            
+            }
+        
+        }
+    
+    }
+
+}
