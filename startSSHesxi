@@ -1,0 +1,10 @@
+$vcenter = "myvcenter01"
+
+Connect-viserver $vcenter
+
+$vmhost = Get-VMHost
+
+foreach($v in $vmhost){
+    get-vmhostservice -vmhost $v.name | where-object {$_.label -eq "ssh"} | start-vmhostservice
+
+}
