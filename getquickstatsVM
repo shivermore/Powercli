@@ -1,0 +1,21 @@
+function getquickstatsvm {
+$vms = get-vm | Where-Object {$_.powerstate -eq "PoweredOn"}
+$bad = @()
+
+foreach ($vm in $vms){
+    $cpu = $vm | get-stat -stat cpu.usage.average
+    if($cpu.length -ne ""){
+        write-host "$($vm) ok" -fore Green
+
+    }else{
+        $bad += "$($vm.vmhost)`n"
+        write-host "$($vm) bad" -fore Red
+    
+    }
+
+}
+$badunique = $bad | Select-Object -Unique
+write-host "Hosts experiencing issues:"
+write-host "$($badunique)" -fore Red
+
+}
