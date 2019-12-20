@@ -1,0 +1,30 @@
+$vcencreds = get-credential -message "vCenter Creds"
+$esxicreds = get-credential -message "ESXi Creds"
+
+function removeVIB{
+    param(
+        [string]$vcenter,
+        [string]$cluster
+    
+    )
+
+    connect-viserver $vcenter -credential $vcencreds -warningaction silentlycontinue
+    $vmhost = get-cluster -name $cluster | Get-VMHost
+    disconnect-viserver * -confirm:$false -warningaction silentlycontinue
+
+    foreach($esxi in $vmhost){
+        write-host "Checking $($esxi.name)" -fore Magenta
+        $1 = connect-viserver $esxi.name -credential $esxicreds -warningaction silentlycontinue
+        $esxcli = get-esxcli -vmhost $esxi.name
+
+        if(($esxcli.software.vib.list()).name -eq "cpu-microcode"){
+            write-host "Removing VIB on $($esxi.name)" -fore Magenta
+            $esxcli.software.vib.remove($null,$true,$false,$true,"cpu-microcode")
+        
+        }
+
+     Disconnect-VIServer * -confirm:$false -warningaction silentlycontinue
+
+    }
+
+}
