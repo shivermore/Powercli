@@ -1,0 +1,33 @@
+function vmkping{
+    $interface = 'vmk1'
+    $ip = 'x.x.x.x'
+    $vcenter = 'myVcenter01'
+    $cluster = 'myCluster01'
+
+    $connect = Connect-VIServer $vcenter -warningaction silentlycontinue -erroraction silentelycontinue
+    $vmhosts = get-cluster -name $cluster | get-vmhost -name *1234*
+
+    foreach($vmhost in $vmhosts){
+        
+        $esxcli = get-esxcli -vmhost $vmhost -v2
+        $pingparam = $esxcli.network.diag.ping.createargs()
+        $pingparam.host = $ip
+        $pingparam.interface = $interface
+        $pingexect = $esxcli.network.diag.ping.invoke($pingparam)
+        $pingreceived = $pingexect.summary.recieved
+        $pingsent = $pingexect.summary.transmitted
+
+        if($pingsent -eq $pingreceived){
+            write-host "$($vmhost) 100% ping success" -fore Green
+        
+        }elseif(!($pingreceived -eq 0)){
+            write-host "$($vmhost) ping partially successful" -fore Yellow
+        
+        }else{
+            write-host "$($vmhost) ping failed, 0% success rate" -fore red
+        
+        }
+    
+    }
+    $disconnect = Disconnect-VIServer * -confirm:$false -warningaction silentlycontinue -erroraction silentlycontinue
+}
