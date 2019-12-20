@@ -1,0 +1,23 @@
+$vcencreds = get-credential -message "vCenter Creds"
+$esxicreds = Get-Credential -Message "ESXi Creds"
+
+function maintMode{
+    param(
+        [string]$vcenter,
+        [string]$cluster
+    
+    )
+
+connect-viserver $vcenter -credential $vcencreds -warningaction silentlycontinue
+$esxihost = get-cluster -name $cluster | Get-VMHost
+Disconnect-VIServer * -confirm:$false -warningaction silentlycontinue
+
+foreach($esxi in $esxihost){
+    Connect-VIServer $esxi -credential $esxicreds
+    $esxcli = get-esxcli -vmhost $esxi.name
+    $esxcli.system.maintenanceMode.set($true,0,"noAction")
+    Disconnect-VIServer * -confirm:$false
+}
+
+
+}
