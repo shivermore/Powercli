@@ -1,0 +1,24 @@
+function lockdownmode {
+    param(
+        [string]$vcenter
+    
+    )
+
+$connect1 = Connect-VIServer $vcenter -warningaction silentlycontinue
+$vmhosts = Get-VMHost
+$level = New-Object vmware.vim.hostlockdownmode
+$level = "lockdownNormal"
+$account1 = "root","admin","account3"
+
+foreach($esxi1 in $vmhosts){
+    write-host "Adding user to list" -fore Cyan
+    $hostaccessmanager = get-view -server $vcenter $esxi1.extensiondata.configmanager.hostaccessmanager
+    $hostaccessmanager.updatelockdownexceptions($account1)
+    $hostaccessmanager.changelockdownmode($level)
+    $hostaccessmanager.updateviewdata()
+    $lockdownstatus = $hostaccessmanager.lockdownmode
+    write-host "Lockdown mode on $esxi1.name is set to $lockdownstatus"
+
+}
+$disconnect = Disconnect-VIServer * -confirm:$false
+}
