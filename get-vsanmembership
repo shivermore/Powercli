@@ -1,0 +1,27 @@
+$vcencreds = Get-Credential -Message "vCenter Creds"
+$esxicreds = Get-Credential -Message "ESXi Creds"
+
+function getvsanmembership{
+    param(
+            [string]$vcenter,
+            [string]$cluster
+         )
+
+Connect-VIServer $vcenter -credential $vcencreds -warnginaction silentlycontinue
+$vmhost = get-cluster -name $cluster | Get-VMHost
+Disconnect-VIServer * -confirm:$false -warnginaction silentlycontinue
+
+$vsanresults = ""
+foreach($esxi in $vmhost){
+    write-host "Checking $($esxi.name)" -fore Magenta
+    $1 = Connect-VIServer $esxi.name -credential $esxicreds -warnginaction silentlycontinue
+    $ESXCLI = getesxcli -vmhost -$esxi.name
+    $results = $ESXCLI.vsan.cluster.get()
+    $vsanresults += "$($esxi.name), $($results.subclustermembercount)`n"
+    Disconnect-VIServer * -confirm:$false -warnginaction silentlycontinue
+
+}
+Write-Host "Results" -fore Green
+$vsanresults
+
+}
